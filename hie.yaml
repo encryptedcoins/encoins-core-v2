@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:encoins-core-v2"
+
+    - path: "./tests"
+      component: "encoins-core-v2:test:encoins-core-v2-test"
