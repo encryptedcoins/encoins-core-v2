@@ -80,6 +80,8 @@ library
       ENCOINS.Core.V2.Script
     build-depends:
       base                          >= 4.9 && < 5,
+      hspec                                      ,
+      QuickCheck                                 ,
       semialign                             < 1.4,
       zkfold-base                                ,
     hs-source-dirs: src
@@ -89,7 +91,11 @@ test-suite encoins-core-v2-test
     type: exitcode-stdio-1.0
     ghc-options: -rtsopts
     main-is: Main.hs
-    other-modules:
+    other-modules: Test
     build-depends:
       base                          >= 4.9 && < 5,
+      hspec                                      ,
+      encoins-core-v2                            ,
+      QuickCheck                                 ,
+      zkfold-base                                ,
     hs-source-dirs: tests

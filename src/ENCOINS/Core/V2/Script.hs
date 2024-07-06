@@ -4,6 +4,7 @@ import           Data.Zip                                       (Zip(..))
 import           GHC.Natural (Natural)
 import           Prelude                                        hiding (negate, Bool, Eq (..), all, sum, length, splitAt, zip, (&&), (==),
                                                                  (*), (+), (!!), (||))
+import           Test.QuickCheck                                (Arbitrary)
 
 import           ZkFold.Base.Algebra.Basic.Class
 import           ZkFold.Base.Data.Vector                        ((!!), uncons, unsafeToVector)
@@ -21,11 +22,13 @@ import           ZkFold.Symbolic.Data.UInt
 type MaxTokens = 5
 type MaxTokenMints = 4
 
-type TxOut a = Output MaxTokens () a
-type TxIn a  = Input MaxTokens () a
-type Tx a = Transaction 3 3 11 MaxTokens MaxTokenMints () a
+type TxOut b a = Output MaxTokens () b a
+type TxIn b a  = Input MaxTokens () b a
+type Tx b a = Transaction 3 3 11 MaxTokens MaxTokenMints () b a
 
 type Coin b a = (Value MaxTokens b a, b 1 a)
+
+data EncoinsContractTest b a = EncoinsContractTest [TxIn b a] (Tx b a) (ProtocolInput b a)
 
 toByteString :: forall a b n x . (BinaryExpansion x, Extend (Bits x) (b n a)) => x -> ByteString n b a
 toByteString = ByteString . extend @_ @(b n a) . binaryExpansion
@@ -63,6 +66,8 @@ type Sig b a =
     , Concat (ByteString 64 b a) (ByteString 512 b a)
     , ReverseEndianness 64 (ByteString 512 b a)
     , ReverseEndianness 64 (ByteString 1024 b a)
+    , Arbitrary (EncoinsContractTest b a)
+    , Show (EncoinsContractTest b a)
     , FromConstant Natural (b 0 a)
     , FromConstant Natural (UInt 64 b a), MultiplicativeMonoid (UInt 64 b a)
     , FromConstant Natural (ByteString 0 b a), Extend (ByteString 0 b a) (ByteString 1024 b a)
