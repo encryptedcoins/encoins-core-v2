@@ -3,7 +3,7 @@ index-state: 2023-10-29T16:11:26Z
 source-repository-package
   type: git
   location: https://github.com/zkFold/zkfold-base.git
-  tag: bb702844cd91d8942fbf60d956caa2467c09fac4
+  tag: 4c47a1133a5cd048c9c9475dc42344706829faa5
 
 packages: .
 
