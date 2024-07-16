@@ -2,125 +2,126 @@ module ENCOINS.Core.V2.Script where
 
 import           Data.Zip                                       (Zip(..))
 import           GHC.Natural (Natural)
-import           Prelude                                        hiding (negate, Bool, Eq (..), all, sum, length, splitAt, zip, (&&), (==),
+import           Prelude                                        hiding (Num(..), negate, Bool, Eq (..), all, sum, length, splitAt, replicate, zip, (&&), (==),
                                                                  (*), (+), (!!), (||))
-import           Test.QuickCheck                                (Arbitrary)
 
 import           ZkFold.Base.Algebra.Basic.Class
-import           ZkFold.Base.Data.Vector                        ((!!), uncons, unsafeToVector)
+import           ZkFold.Base.Algebra.Basic.Number               (value)
+import           ZkFold.Base.Data.Vector                        ((!!), uncons, unsafeToVector, Vector)
+import           ZkFold.Prelude                                 (replicate)
 import           ZkFold.Symbolic.Algorithms.Hash.Blake2b        (blake2b_256)
 import           ZkFold.Symbolic.Algorithms.Hash.MiMC
 import           ZkFold.Symbolic.Algorithms.Hash.MiMC.Constants (mimcConstants)
 import           ZkFold.Symbolic.Cardano.Types
-import           ZkFold.Symbolic.Compiler.Arithmetizable
-import           ZkFold.Symbolic.Data.Bool                      (Bool (..), BoolType (..), all)
-import           ZkFold.Symbolic.Data.ByteString
+import           ZkFold.Symbolic.Data.Bool                      hiding (Bool(..))
+import           ZkFold.Symbolic.Data.ByteString                hiding (ByteString(..))
+import qualified ZkFold.Symbolic.Data.ByteString                as Symbolic
 import           ZkFold.Symbolic.Data.Combinators
+import           ZkFold.Symbolic.Data.Conditional               (bool, Conditional)
 import           ZkFold.Symbolic.Data.Eq
-import           ZkFold.Symbolic.Data.UInt
+import           ZkFold.Symbolic.Data.FieldElement              (fromFieldElement)
+import           ZkFold.Symbolic.Data.UInt                      hiding (UInt(..))
 
-type MaxTokens = 5
+type MaxTokens = 2
 type MaxTokenMints = 4
 
-type TxOut b a = Output MaxTokens () b a
-type TxIn b a  = Input MaxTokens () b a
-type Tx b a = Transaction 3 3 11 MaxTokens MaxTokenMints () b a
+type TxOut context = Output MaxTokens () context
+type TxIn context  = Input MaxTokens () context
+type Tx context = Transaction 3 3 5 MaxTokens MaxTokenMints () context
 
-type Coin b a = (Value MaxTokens b a, b 1 a)
+type Coin context = (Value MaxTokens context, FieldElement context)
 
-data EncoinsContractTest b a = EncoinsContractTest [TxIn b a] (Tx b a) (ProtocolInput b a)
+-- TODO: check correctness
+toByteString :: forall context n . Extend (ByteString 1 context) (ByteString n context) => FieldElement context -> ByteString n context
+toByteString = extend . Symbolic.ByteString . fromFieldElement
 
-toByteString :: forall a b n x . (BinaryExpansion x, Extend (Bits x) (b n a)) => x -> ByteString n b a
-toByteString = ByteString . extend @_ @(b n a) . binaryExpansion
+hash :: forall c x . MiMCHash F c x => x -> FieldElement c
+hash = mimcHash mimcConstants zero
 
-hash :: forall a b x . (Arithmetic a, MiMCHash a b x) => x -> b 1 a
-hash = mimcHash @a mimcConstants zero
+type Sig context =
+    ( FromConstant Natural (ByteString 0 context)
+    , FromConstant Natural (ByteString 4 context)
+    , FromConstant Natural (ByteString 8 context)
+    , FromConstant Natural (UInt 32 context)
+    , FromConstant Natural (UInt 64 context)
+    , FromConstant Natural (UTCTime context)
+    , Concat (ByteString 8 context) (ByteString 224 context)
+    , Concat (ByteString 8 context) (ByteString 256 context)
+    , StrictConv F (UInt 256 context)
+    , AdditiveGroup (UInt 64 context)
+    , AdditiveSemigroup (Value MaxTokens context)
+    , MultiplicativeSemigroup (UInt 256 context)    
+    , BoolType (ByteString 64 context)
+    , Conditional (Bool context) (Value MaxTokens context)
+    , Eq (Bool context) (ByteString 4 context)
+    , Eq (Bool context) (ByteString 224 context)
+    , Eq (Bool context) (ByteString 256 context)
+    , Eq (Bool context) (UInt 256 context)
+    , Eq (Bool context) (Value MaxTokens context)
+    , Eq (Bool context) (Address context)
+    , Eq (Bool context) (Output MaxTokens () context)
+    , Eq (Bool context) (UInt 64 context)
+    , Scale Natural (Value 5 context)
+    , Iso (UInt 256 context) (ByteString 256 context)
+    , Iso (ByteString 64 context) (UInt 64 context)
+    , Iso (ByteString 512 context) (UInt 512 context)
+    , Extend (ByteString 0 context) (ByteString 256 context)
+    , Extend (ByteString 0 context) (ByteString 1024 context)
+    , Extend (ByteString 1 context) (ByteString 256 context)
+    , Extend (ByteString 224 context) (ByteString 256 context)
+    , Extend (ByteString 256 context) (ByteString 256 context)
+    , Extend (ByteString 256 context) (ByteString 1024 context)
+    , ToWords (ByteString 1024 context) (ByteString 64 context)
+    , Truncate (ByteString 512 context) (ByteString 256 context)
+    , ShiftBits (ByteString 64 context), ShiftBits (ByteString 1024 context)
+    , Concat (ByteString 64 context) (ByteString 512 context)
+    , ReverseEndianness 64 (ByteString 512 context)
+    , ReverseEndianness 64 (ByteString 1024 context)
+    , MultiplicativeMonoid (UInt 64 context)
+    , MiMCHash F context (Coin context)
+    , MiMCHash F context (Address context)
+    , MiMCHash F context (Address context, ByteString 224 context)
+    , MiMCHash F context (ByteString 256 context, (ByteString 256 context, (Value MaxTokens context, (Value MaxTokens context, (Address context, Address context)))))
+    )
 
-type Sig b a =
-    ( Arithmetic a
-    , FromConstant Natural (b 224 a)
-    , StrictConv a (UInt 256 b a)
-    , AdditiveGroup (UInt 64 b a)
-    , AdditiveSemigroup (Value MaxTokens b a)
-    , MultiplicativeSemigroup (UInt 256 b a)
-    , BoolType (ByteString 64 b a)
-    , Eq (Bool (b 1 a)) (ByteString 224 b a)
-    , Eq (Bool (b 1 a)) (UInt 256 b a)
-    , Eq (Bool (b 1 a)) (ByteString 256 b a)
-    , Eq (Bool (b 1 a)) (Value MaxTokens b a)
-    , Eq (Bool (b 1 a)) (Address b a)
-    , Eq (Bool (b 1 a)) (Output MaxTokens () b a)
-    , Eq (Bool (b 1 a)) (UInt 64 b a)
-    , Functor (Value MaxTokens b)
-    , Scale (b 1 a) a
-    , Iso (UInt 256 b a) (ByteString 256 b a)
-    , Iso (ByteString 64 b a) (UInt 64 b a)
-    , Iso (ByteString 512 b a) (UInt 512 b a)
-    , Extend (Bits (b 1 a)) (b 256 a)
-    , Extend (ByteString 0 b a) (ByteString 256 b a)
-    , Extend (ByteString 224 b a) (ByteString 256 b a)
-    , Extend (ByteString 256 b a) (ByteString 1024 b a)
-    , ToWords (ByteString 1024 b a) (ByteString 64 b a)
-    , Truncate (ByteString 512 b a) (ByteString 256 b a)
-    , ShiftBits (ByteString 64 b a), ShiftBits (ByteString 1024 b a)
-    , Concat (ByteString 64 b a) (ByteString 512 b a)
-    , ReverseEndianness 64 (ByteString 512 b a)
-    , ReverseEndianness 64 (ByteString 1024 b a)
-    , Arbitrary (EncoinsContractTest b a)
-    , Show (EncoinsContractTest b a)
-    , FromConstant Natural (b 0 a)
-    , FromConstant Natural (UInt 64 b a), MultiplicativeMonoid (UInt 64 b a)
-    , FromConstant Natural (ByteString 0 b a), Extend (ByteString 0 b a) (ByteString 1024 b a)
-    , MiMCHash a b (Coin b a)
-    , MiMCHash a b (Address b a)
-    , MiMCHash a b (Address b a, ByteString 224 b a)
-    , MiMCHash a b (ByteString 256 b a, (ByteString 256 b a, (Value MaxTokens b a, (Value MaxTokens b a, (Address b a, Address b a)))))
-    , BinaryExpansion (b 1 a))
-
-coinName :: forall b a . Sig b a => Coin b a -> b 1 a
+coinName :: forall context . Sig context => Coin context -> FieldElement context
 coinName = hash
 
-data ValueUpdate b a = ValueUpdate
-    { valueUpdateT         :: ByteString 256 b a
-    , valueUpdateT'        :: ByteString 256 b a
-    , valueUpdateVu        :: Value MaxTokens b a
-    , valueUpdateVr        :: Value MaxTokens b a
-    , valueUpdateA'        :: Address b a
-    , valueUpdateAr        :: Address b a
+data ValueUpdate context = ValueUpdate
+    { valueUpdateT         :: ByteString 256 context
+    , valueUpdateT'        :: ByteString 256 context
+    , valueUpdateVu        :: Value MaxTokens context
+    , valueUpdateVr        :: Value MaxTokens context
+    , valueUpdateA'        :: Address context
+    , valueUpdateAr        :: Address context
     }
 
-checkValueUpdate :: forall a b . Sig b a => ValueUpdate b a -> (Coin b a, Coin b a) -> Bool (b 1 a)
+checkValueUpdate :: forall context . Sig context => ValueUpdate context -> (Coin context, Coin context) -> Bool context
 checkValueUpdate (ValueUpdate t t' vu _ _ _ ) (c@(v, _), c'@(v', _)) =
     let
-        conditionOldHash = t == toByteString (hash @a @b c)
+        conditionOldHash = t == toByteString (hash @context c)
 
-        conditionNewHash = t' == toByteString (hash @a @b c')
+        conditionNewHash = t' == toByteString (hash @context c')
 
         conditionBalance = v' == v + vu
     in conditionOldHash && conditionNewHash && conditionBalance
 
-data ProtocolInput b a = Input
-    { inputEncoinsAddress :: Address b a
-    , inputEncoinsSymbol  :: ByteString 224 b a
-    , inputValueUpdates   :: (ValueUpdate b a, ValueUpdate b a)
-    , inputProofReference :: (OutputRef b a, OutputRef b a)
+data ProtocolInput context = ProtocolInput
+    { inputEncoinsAddress :: Address context
+    , inputEncoinsSymbol  :: ByteString 224 context
+    , inputValueUpdates   :: (ValueUpdate context, ValueUpdate context)
+    , inputProofReference :: (OutputRef context, OutputRef context)
     }
 
 -- TODO: replace with the actual values (testnet, mainnet)
-encoinsBeaconSymbol :: Sig b a => PolicyId b a
-encoinsBeaconSymbol = ByteString $ fromConstant @Natural 12407958170701254809810251256235325962359823759
+encoinsBeaconSymbol :: Sig context => PolicyId context
+encoinsBeaconSymbol = ""
 
 -- TODO: replace with the actual values (testnet, mainnet)
-encoinsProofSymbol :: Sig b a => PolicyId b a
-encoinsProofSymbol = ByteString $ fromConstant @Natural 98237578236573619851682415165263356158158158163
+encoinsProofSymbol :: Sig context => PolicyId context
+encoinsProofSymbol = ""
 
-emptyByteString :: forall a b . Sig b a => ByteString 0 b a
-emptyByteString = ByteString $ fromConstant @Natural 0
-
-emptyDatumHash :: forall a b . Sig b a => ByteString 256 b a
-emptyDatumHash = blake2b_256 emptyByteString
-
-encoinsTransaction :: forall a b . Sig b a => Tx b a -> ProtocolInput b a -> Bool (b 1 a)
+encoinsTransaction :: forall context . Sig context => Tx context -> ProtocolInput context -> Bool context
 encoinsTransaction tx input =
     let
         encoinsAddress = inputEncoinsAddress input
@@ -132,7 +133,7 @@ encoinsTransaction tx input =
         refIns = txRefInputs tx
         
         refBeacon     = txiOutput $ refIns !! 0
-        expectedDatum = toByteString @a @b @256 $ hash @a @b (encoinsAddress, encoinsSymbol)
+        expectedDatum = toByteString @context @256 $ hash @context (encoinsAddress, encoinsSymbol)
         conditionBeaconIsPresent    = fst (getValue (txoTokens refBeacon) !! 1) == encoinsBeaconSymbol
         conditionBeaconDatumMatches = txoDatumHash refBeacon == blake2b_256 expectedDatum
 
@@ -143,7 +144,7 @@ encoinsTransaction tx input =
         refCoin = getValue (txoTokens $ txiOutput $ refIns !! 1) !! 1
         refCoinPolicyId = fst refCoin
         refCoinName1 = fst $ snd refCoin
-        valueUpdateHash1 = hash @a @b
+        valueUpdateHash1 = hash @context
             (valueUpdateT valueUpdate1,
             (valueUpdateT' valueUpdate1,
             (valueUpdateVu valueUpdate1,
@@ -155,7 +156,7 @@ encoinsTransaction tx input =
         refCoin2 = getValue (txoTokens $ txiOutput $ refIns !! 2) !! 1
         refCoinPolicyId2 = fst refCoin2
         refCoinName2 = fst $ snd refCoin2
-        valueUpdateHash2 = hash @a @b
+        valueUpdateHash2 = hash @context
             (valueUpdateT valueUpdate2,
             (valueUpdateT' valueUpdate2,
             (valueUpdateVu valueUpdate2,
@@ -164,8 +165,8 @@ encoinsTransaction tx input =
             valueUpdateAr valueUpdate2)))))
         conditionValueUpdate2 = refCoinPolicyId2 == encoinsProofSymbol && refCoinName2 == toByteString valueUpdateHash2
 
-        inputAtEncoins = fmap (\i -> txoAddress (txiOutput i) == encoinsAddress) ins
-        valueAtEncoins = sum ((\(i, Bool b) -> scale @(b 1 a) b (txoTokens $ txiOutput i)) <$> zip ins inputAtEncoins)
+        inputAtEncoins = fmap (\i -> txoAddress (txiOutput i) == encoinsAddress) ins :: Vector 3 (Bool context)
+        valueAtEncoins = sum ((\(i, b) -> bool zero (txoTokens $ txiOutput i) b) <$> zip ins inputAtEncoins)
         valueAtEncoins' = txoTokens outEncoins
         valueInUpdates  = valueUpdateVu valueUpdate1 + valueUpdateVu valueUpdate2
         conditionBalance = valueAtEncoins' == valueAtEncoins + valueInUpdates
@@ -180,27 +181,29 @@ encoinsTransaction tx input =
 
         t1  = valueUpdateT valueUpdate1
         conditionCoinBurn1 = t1 ==
-                extend (emptyByteString @a @b)
+                extend (emptyByteString @F @context)
             || (t1 == fst (snd (mints !! 0)) && snd (snd (mints !! 0)) == negate one)
         t1' = valueUpdateT' valueUpdate1
         conditionCoinMint1 = t1' ==
-                extend (emptyByteString @a @b)
+                extend (emptyByteString @F @context)
             || (t1' == fst (snd (mints !! 1)) && snd (snd (mints !! 1)) == one)
 
-        c1 = Value $ unsafeToVector [(encoinsSymbol, (t1', one))]
+        -- TODO: check correctness
+        c1 = Value $ unsafeToVector $ replicate (value @MaxTokens) (encoinsSymbol, (t1', one))
         outAtA1 = Output (valueUpdateA' valueUpdate1, (c1, emptyDatumHash))
         conditionCoinSend1 = outs !! 3 == outAtA1 || valueUpdateVu valueUpdate1 == zero
 
         t2  = valueUpdateT valueUpdate2
         conditionTokenBurn2 = t2 ==
-                extend (emptyByteString @a @b)
+                extend (emptyByteString @F @context)
             || (t2 == fst (snd (mints !! 2)) && snd (snd (mints !! 2)) == negate one)
         t2' = valueUpdateT' valueUpdate2
         conditionTokenMint2 = t2' ==
-                extend (emptyByteString @a @b)
+                extend (emptyByteString @F @context)
             || (t2' == fst (snd (mints !! 3)) && snd (snd (mints !! 3)) == one)
 
-        c2 = Value $ unsafeToVector [(encoinsSymbol, (t2', one))]
+        -- TODO: check correctness
+        c2 = Value $ unsafeToVector $ replicate (value @MaxTokens) (encoinsSymbol, (t2', one))
         outAtA2 = Output (valueUpdateA' valueUpdate2, (c2, emptyDatumHash))
         conditionTokenSend2 = outs !! 4 == outAtA2 || valueUpdateVu valueUpdate2 == zero
 

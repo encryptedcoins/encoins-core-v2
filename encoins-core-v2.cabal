@@ -91,7 +91,9 @@ test-suite encoins-core-v2-test
     type: exitcode-stdio-1.0
     ghc-options: -rtsopts
     main-is: Main.hs
-    other-modules: Test
+    other-modules:
+      Test
+      Test.Internal
     build-depends:
       base                          >= 4.9 && < 5,
       hspec                                      ,
